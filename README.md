@@ -1,93 +1,91 @@
-# smartContracts
+# Synergetics Smart Contracts
 
+This repository contains the smart contracts for Synergetics, implemented using Hardhat. The contracts adhere to various Ethereum standards, including ERC-6551, ERC-4337, ERC-20, ERC-721, and ERC-5169.
 
+## Overview
 
-## Getting started
+The Synergetics BOT ecosystem is designed to tokenize all ownable entities, ensuring each has a representation on the EVM blockchain. Every BOT is represented as a unique Non-Fungible Token (NFT) with a dynamically assigned unique ID upon creation. These BOT NFTs follow the ERC-6551 standard and include a Token Bound Account (TBA).
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### Token Bound Account (TBA)
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- **Implementation**: ERC-4337
+- **Features**: Account Abstraction (AA) enables advanced functionalities such as multisignature authentication, gasless transactions, automated payments, and other programmable operations.
 
-## Add your files
+## Features
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+BOTS within the Synergetics ecosystem can hold various types of assets within their TBAs. These assets include:
 
+- **NFTs for Data Access**: Granting BOTs access to specific data sources.
+- **ERC-5169 NFTs**: These NFTs provide scripts, enabling BOTs to execute predefined methods and actions.
+
+## Repository Setup & Commands
+
+Before running any Hardhat commands, ensure dependencies are installed:
+
+```bash
+npm install
 ```
-cd existing_repo
-git remote add origin https://git.netobjex.com/unifygpt/blockchain/sc/smartcontracts.git
-git branch -M master
-git push -uf origin master
+
+### Environment Variables
+
+Before testing, verifying, or deploying contracts, set up the `.env` file with the following variables:
+
+```env
+PRIVATE_KEY=<your_private_key>
+ETHERSCAN_API_KEY=<your_etherscan_api_key>
+POLYSCAN_API_KEY=<your_polyscan_api_key>
+INFURA_ID=<your_infura_project_id>
 ```
 
-## Integrate with your tools
+### Compile Contracts
 
-- [ ] [Set up project integrations](https://git.netobjex.com/unifygpt/blockchain/sc/smartcontracts/-/settings/integrations)
+```bash
+npx hardhat compile
+```
 
-## Collaborate with your team
+### Deploy Contracts
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+Deploy the contracts to a specific network using:
 
-## Test and Deploy
+```bash
+npx hardhat run --network <network_name> scripts/deploy.js
+```
 
-Use the built-in continuous integration in GitLab.
+### Test Contracts
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Run tests for the smart contracts:
 
-***
+```bash
+npx hardhat test
+```
 
-# Editing this README
+### Test Coverage
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Check the test coverage for the smart contracts using:
 
-## Suggestions for a good README
+```bash
+npx hardhat coverage
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Coverage Considerations
 
-## Name
-Choose a self-explaining name for your project.
+While extensive testing has been implemented, certain areas were not included in the coverage due to technical constraints:
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+1. **Smart Contract Wallet Interaction**: The `AgentRegistry` smart contract relies on interactions with smart contract wallets, making direct test coverage infeasible for these cases.
+2. **Brain Smart Contract - SuperRole Conditionals**: Some test cases involving `superRole` were not feasible to include in the coverage due to their conditional nature.
+3. **Bot Smart Contract - No Burn Functionality**: The `burn` function is intentionally omitted from the Bot smart contract. Burning a bot token would result in permanent loss of access, potentially locking funds inside the associated wallet. Since bot tokens represent access or ownership tied to wallet functionality, this design choice ensures token management does not result in asset loss.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Architecture Diagram
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+![Synergetics BOT Ecosystem Diagram](/public/unifygpt-bot-diagram.png)
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+---
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+For more detailed information and technical documentation, please refer to the contract files and associated documentation.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Additional Resources
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- [Vitalik's post on account abstraction without Ethereum protocol changes](https://medium.com/infinitism/erc-4337-account-abstraction-without-ethereum-protocol-changes-d75c9d94dc4a)
+- [Bundler Reference Implementation](https://github.com/eth-infinitism/bundler)
+- [Bundler Specification Test Suite](https://github.com/eth-infinitism/bundler-spec-tests)
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
