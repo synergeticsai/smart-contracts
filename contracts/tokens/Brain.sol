@@ -91,6 +91,9 @@ contract Brain is
         _setBaseURI(_baseMetadataURI);
     }
 
+    // Storage gap for upgradeability
+    uint256[50] private __gap;
+
     modifier onlyAdminOrTokenOwner(uint256 tokenId) {
         require(
                 ERC721Upgradeable.ownerOf(tokenId) == _msgSender() ||
