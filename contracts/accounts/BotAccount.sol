@@ -12,7 +12,7 @@ import "../lib/Bytecode.sol";
 
 /**
  * @title BotAccount
- * @dev A smart contract for ERC-6551 BotAccount Accounts.
+ * @dev A smart contract for ERC-6551 BotAccount Accounts with EIP-712 compliant signatures.
  */
 contract BotAccount is
     IERC721Receiver,
@@ -22,25 +22,43 @@ contract BotAccount is
     Initializable
 {
     using ECDSA for bytes32;
+    
     uint256 private _nonce;
     address public botExecutor;
+    
+    // EIP-712 constants
+    bytes32 private constant DOMAIN_TYPEHASH = keccak256(
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    );
+    bytes32 private constant EXECUTE_CALL_TYPEHASH = keccak256(
+        "ExecuteCall(address to,uint256 value,bytes data,uint256 nonce)"
+    );
+    bytes32 private DOMAIN_SEPARATOR;
 
     /** Constructor */
-
-    /**
-     * @dev Constructor for BotAccount. Disables initializers for upgradeability.
-     */
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
     /**
-     * @dev Initializes the contract with Bot Executor.
+     * @dev Initializes the contract with Bot Executor and sets up EIP-712 domain separator.
      * @param _botExecutor Address of Bot Executor.
      */
     function initialize(address _botExecutor) external initializer {
+        require(_botExecutor != address(0), "BotExecutor cannot be zero address");
         botExecutor = _botExecutor;
+        
+        // Initialize EIP-712 domain separator
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                DOMAIN_TYPEHASH,
+                keccak256("BotAccount"),
+                keccak256("1"),
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     /**
@@ -74,7 +92,7 @@ contract BotAccount is
     }
 
     /**
-     * @dev Execute a call to another contract with a signature.
+     * @dev Execute a call to another contract with an EIP-712 compliant signature.
      * @param to Target contract address.
      * @param value Value to send with the call.
      * @param data Calldata for the call.
@@ -87,9 +105,28 @@ contract BotAccount is
         bytes calldata data,
         bytes calldata signature
     ) external payable returns (bytes memory result) {
-        bytes32 payload = keccak256(abi.encodePacked(_nonce, to, value, data));
-
-        address signer = payload.toEthSignedMessageHash().recover(signature);
+        require(msg.value == value, "Ether value mismatch");
+        
+        // Construct EIP-712 typed data hash
+        bytes32 structHash = keccak256(
+            abi.encode(
+                EXECUTE_CALL_TYPEHASH,
+                to,
+                value,
+                keccak256(data),
+                _nonce
+            )
+        );
+        
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                DOMAIN_SEPARATOR,
+                structHash
+            )
+        );
+        
+        address signer = digest.recover(signature);
         require(signer == botExecutor, "Not executor approved");
 
         bool success;
@@ -127,8 +164,7 @@ contract BotAccount is
      * @return The address of the token owner.
      */
     function owner() public view returns (address) {
-        (uint256 chainId, address tokenContract, uint256 tokenId) = this
-            .token();
+        (uint256 chainId, address tokenContract, uint256 tokenId) = this.token();
         if (chainId != block.chainid) return address(0);
 
         return IERC721(tokenContract).ownerOf(tokenId);
@@ -140,6 +176,14 @@ contract BotAccount is
      */
     function nonce() external view returns (uint256) {
         return _nonce;
+    }
+
+    /**
+     * @dev Get the EIP-712 domain separator.
+     * @return The domain separator hash.
+     */
+    function getDomainSeparator() external view returns (bytes32) {
+        return DOMAIN_SEPARATOR;
     }
 
     /**

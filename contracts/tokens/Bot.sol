@@ -66,6 +66,9 @@ contract Bot is ERC721Enumerable, ERC721URIStorage, Pausable {
         IERC6551Registry _erc6551Registry,
         address _erc6551Account
     ) ERC721("Bot", "bTKN") {
+        require(_admin != address(0), "Admin cannot be zero address");
+        require(_minter != address(0), "Minter cannot be zero address");
+        require(_erc6551Account != address(0), "ERC6551 Account cannot be zero address");
         admin = _admin;
         minter = _minter;
         erc6551Registry = _erc6551Registry;
@@ -102,6 +105,7 @@ contract Bot is ERC721Enumerable, ERC721URIStorage, Pausable {
      * @param _minter Address of the minter.
      */
     function setMinter(address _minter) external onlyAdmin {
+        require(_minter != address(0), "Bot: minter cannot be zero address");
         require(minter != _minter, "Bot: already minter");
         minter = _minter;
     }
@@ -121,6 +125,7 @@ contract Bot is ERC721Enumerable, ERC721URIStorage, Pausable {
      * @param _erc6551Account Address of the ERC6551 account.
      */
     function setERC6551Account(address _erc6551Account) external onlyAdmin {
+        require(_erc6551Account != address(0), "Bot: ERC6551Account cannot be zero address");
         erc6551Account = _erc6551Account;
     }
 

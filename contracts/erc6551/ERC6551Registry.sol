@@ -6,6 +6,32 @@ import "../interfaces/IERC6551Registry.sol";
 
 contract ERC6551Registry is IERC6551Registry {
     error InitializationFailed();
+    error UnauthorizedCaller();
+    error BotAlreadySet();
+    error ZeroAddressNotAllowed();
+
+    address public botContract;
+    address public immutable owner;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can set bot");
+        _;
+    }
+
+    modifier onlyBotContract() {
+        if (msg.sender != botContract) revert UnauthorizedCaller();
+        _;
+    }
+
+    function setBotContract(address _botContract) external onlyOwner {
+        if (_botContract == address(0)) revert ZeroAddressNotAllowed();
+        if (botContract != address(0)) revert BotAlreadySet();
+        botContract = _botContract;
+    }
 
     function createAccount(
         address implementation,
@@ -14,7 +40,7 @@ contract ERC6551Registry is IERC6551Registry {
         uint256 tokenId,
         uint256 salt,
         bytes calldata initData
-    ) external returns (address) {
+    ) external onlyBotContract returns (address) {
         bytes memory code = _creationCode(
             implementation,
             chainId,
@@ -70,12 +96,11 @@ contract ERC6551Registry is IERC6551Registry {
         uint256 tokenId_,
         uint256 salt_
     ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                hex"3d60ad80600a3d3981f3363d3d373d3d3d363d73",
-                implementation_,
-                hex"5af43d82803e903d91602b57fd5bf3",
-                abi.encode(salt_, chainId_, tokenContract_, tokenId_)
-            );
+        return abi.encodePacked(
+            hex"3d60ad80600a3d3981f3363d3d373d3d3d363d73",
+            implementation_,
+            hex"5af43d82803e903d91602b57fd5bf3",
+            abi.encode(salt_, chainId_, tokenContract_, tokenId_)
+        );
     }
 }

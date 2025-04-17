@@ -25,6 +25,7 @@ describe('ERC 6551 Bot Account', () => {
             await erc6551Registry.getAddress(),
             await botAccount.getAddress()
         );
+        await erc6551Registry.connect(deployer).setBotContract(botNFT.target);
         const erc20Token: ERC20Token = await new ERC20Token__factory(deployer).deploy()
         const chainId = await network.provider.send('eth_chainId');
 
@@ -50,45 +51,94 @@ describe('ERC 6551 Bot Account', () => {
         return events[0]?.args?.botWallet;
     }
 
-    describe("BOT NFT", async () => {
-        it('should execute call with signature from BOT NFT TBA', async () => {
-            const { erc6551Registry, botAccount, botNFT, erc20Token, chainId, deployer, admin, minter, user1, user2 } = await loadFixture(deployContracts)
+    // Helper function to generate EIP-712 compliant signature
+    const generateExecuteCallSignature = async (
+        botAccount: BotAccount,
+        executor: any,
+        to: string,
+        value: bigint,
+        data: string,
+        chainId: string
+    ) => {
+        const domain = {
+            name: "BotAccount",
+            version: "1",
+            chainId: chainId,
+            verifyingContract: await botAccount.getAddress()
+        };
 
+        const types = {
+            ExecuteCall: [
+                { name: "to", type: "address" },
+                { name: "value", type: "uint256" },
+                { name: "data", type: "bytes" },
+                { name: "nonce", type: "uint256" }
+            ]
+        };
+
+        const nonce = await botAccount.nonce();
+        const message = {
+            to: to,
+            value: value,
+            data: data,
+            nonce: nonce
+        };
+
+        const signature = await executor.signTypedData(domain, types, message);
+        return signature;
+    };
+
+    describe("BOT NFT", async () => {
+        it('should execute call with EIP-712 signature from BOT NFT TBA', async () => {
+            const { erc6551Registry, botAccount, botNFT, erc20Token, chainId, deployer, admin, minter, user1 } = await loadFixture(deployContracts)
+        
             const botExecutor = createExecutors()[0]
             const botExecutorAddress = botExecutor.address
-
-            let uri = "QmZPBffLwhKYSseJzpGGXLuKg5RkZZp4PxjfoKy1hjQ5jR"
+        
+            const uri = "QmZPBffLwhKYSseJzpGGXLuKg5RkZZp4PxjfoKy1hjQ5jR"
             await botNFT.connect(minter).safeMint(user1.address, uri, botExecutorAddress)
+        
             expect(await botNFT.balanceOf(user1.address)).to.equal("1")
             expect(await botNFT.ownerOf("0")).to.equal(user1.address)
-
-            const tokenAccountAddress = await getBotWallet(botNFT, botExecutorAddress);
-            expect(tokenAccountAddress).to.not.be.undefined;
-
-            //sending Eth to token account  
+        
+            const tokenAccountAddress = await getBotWallet(botNFT, botExecutorAddress)
+            expect(tokenAccountAddress).to.not.be.undefined
+        
             await deployer.sendTransaction({
                 to: tokenAccountAddress,
                 value: parseEther("1.0")
             });
-
-            const tokenAccount = await ethers.getContractAt("BotAccount", tokenAccountAddress);
-
+        
+            const tokenAccount = await ethers.getContractAt("BotAccount", tokenAccountAddress)
             expect(await tokenAccount.botExecutor()).to.equal(botExecutorAddress)
-
-            await erc20Token.transfer(tokenAccountAddress, parseEther("10"))
-
-            let encodedFunctionCall = erc20Token.interface.encodeFunctionData('transfer', [user1.address, parseEther("5.0")])
-
-            const payload = ethers.solidityPackedKeccak256(
-                ['uint256', 'address', 'uint256', 'bytes'],
-                [await tokenAccount.nonce(), await erc20Token.getAddress(), "0", encodedFunctionCall]
+        
+            // --- Domain Separator Test ---
+            const expectedDomain = {
+                name: "BotAccount",
+                version: "1",
+                chainId: chainId,
+                verifyingContract: tokenAccountAddress
+            }
+        
+            const domainTypeHash = ethers.id("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+            const nameHash = ethers.id(expectedDomain.name);
+            const versionHash = ethers.id(expectedDomain.version);
+        
+            const expectedDomainSeparator = ethers.keccak256(
+                ethers.AbiCoder.defaultAbiCoder().encode(
+                    ["bytes32", "bytes32", "bytes32", "uint256", "address"],
+                    [
+                        domainTypeHash,
+                        nameHash,
+                        versionHash,
+                        Number(chainId),
+                        tokenAccountAddress
+                    ]
+                )
             );
-            const signature = await botExecutor.signMessage(ethers.getBytes(payload));
-            const recoveredAddress = ethers.verifyMessage(ethers.getBytes(payload), signature);
-
-            expect(recoveredAddress).to.equal(botExecutor.address)
-            expect(await tokenAccount.isValidSignature(payload, signature)).to.equal("0x1626ba7e")
-            await tokenAccount.connect(user1).executeCallWithSignature(await erc20Token.getAddress(), "0", encodedFunctionCall, signature)
+        
+            const contractDomainSeparator = await tokenAccount.getDomainSeparator();
+            expect(contractDomainSeparator).to.equal(expectedDomainSeparator);
         })
 
         it('should execute call from NFT owner from BOT NFT TBA', async () => {
@@ -135,40 +185,27 @@ describe('ERC 6551 Bot Account', () => {
 
             expect(ERC20BalanceUser2After - ERC20BalanceUser2Before).to.equal(parseEther("5.0"))
         })
-
+        
         it('should batch mint NFT', async () => {
-            const { erc6551Registry, botAccount, botNFT, erc20Token, chainId, deployer, admin, minter, user1, user2 } = await loadFixture(deployContracts)
-
+            const { botNFT, erc6551Registry, botAccount, erc20Token, chainId, deployer, admin, minter, user1, user2 } = await loadFixture(deployContracts)
+    
             const botExecutors = createExecutors(2)
             const botExecutorsList = botExecutors.map(executor => executor.address)
-
-            let uriList = ["QmZPBffLwhKYSseJzpGGXLuKg5RkZZp4PxjfoKy1hjQ5jR", "QmZPBffLwhKYSseJzpGGXLuKg5RkZZp4PxjfoKy1hjasdfasdf"]
-
+            const uriList = [
+                "QmZPBffLwhKYSseJzpGGXLuKg5RkZZp4PxjfoKy1hjQ5jR",
+                "QmZPBffLwhKYSseJzpGGXLuKg5RkZZp4PxjfoKy1hjasdfasdf"
+            ]
+    
             await botNFT.connect(minter).batchSafeMint([user1.address, user2.address], uriList, botExecutorsList)
+    
             expect(await botNFT.balanceOf(user1.address)).to.equal("1")
             expect(await botNFT.ownerOf("0")).to.equal(user1.address)
-
+    
             const tokenAccountAddress1 = await getBotWallet(botNFT, botExecutorsList[0])
-            const tokenAccountAddress2 = await getBotWallet(botNFT, botExecutorsList[1])
-
-            const tokenAccount1 = await ethers.getContractAt("BotAccount", tokenAccountAddress1);
-
+            const tokenAccount1 = await ethers.getContractAt("BotAccount", tokenAccountAddress1)
+    
             expect(await tokenAccount1.botExecutor()).to.equal(botExecutorsList[0])
 
-            await erc20Token.transfer(tokenAccountAddress1, parseEther("10"))
-
-            let encodedFunctionCall = erc20Token.interface.encodeFunctionData('transfer', [user1.address, parseEther("5.0")])
-
-            const payload = ethers.solidityPackedKeccak256(
-                ['uint256', 'address', 'uint256', 'bytes'],
-                [await tokenAccount1.nonce(), await erc20Token.getAddress(), "0", encodedFunctionCall]
-            );
-            const signature = await botExecutors[0].signMessage(ethers.getBytes(payload));
-            const recoveredAddress = ethers.verifyMessage(ethers.getBytes(payload), signature);
-
-            expect(recoveredAddress).to.equal(botExecutorsList[0])
-            expect(await tokenAccount1.isValidSignature(payload, signature)).to.equal("0x1626ba7e")
-            await tokenAccount1.connect(user1).executeCallWithSignature(await erc20Token.getAddress(), "0", encodedFunctionCall, signature)
         })
 
         it('should batch mint limit test', async () => {
@@ -191,21 +228,24 @@ describe('ERC 6551 Bot Account', () => {
             ).to.be.reverted;
         });
         
-        it("Should execute call with valid signature", async () => {
-            const { botAccount, botNFT, erc6551Registry, deployer, minter, user1 } = await loadFixture(deployContracts);
+        it("Should execute call with valid EIP-712 signature", async () => {
+            const { botAccount, botNFT, erc6551Registry, deployer, minter, user1, chainId } = await loadFixture(deployContracts);
             
             // Mint an NFT and create TBA
-            const executor = deployer.address;
-            await botNFT.connect(minter).safeMint(user1.address, "ipfs://uri", executor);
-            const tokenAccountAddress = await getBotWallet(botNFT, executor);
+            const executor = deployer;
+            await botNFT.connect(minter).safeMint(user1.address, "ipfs://uri", executor.address);
+            const tokenAccountAddress = await getBotWallet(botNFT, executor.address);
             const tokenAccount = await ethers.getContractAt("BotAccount", tokenAccountAddress);
             
-            const payload = ethers.solidityPackedKeccak256(
-                ["uint256", "address", "uint256", "bytes"],
-                [await tokenAccount.nonce(), user1.address, 0, "0x"]
+            // Generate EIP-712 signature
+            const signature = await generateExecuteCallSignature(
+                tokenAccount,
+                executor,
+                user1.address,
+                0,
+                "0x",
+                chainId
             );
-            
-            const signature = await deployer.signMessage(ethers.getBytes(payload));
             
             await expect(
                 tokenAccount.executeCallWithSignature(user1.address, 0, "0x", signature)
@@ -219,7 +259,7 @@ describe('ERC 6551 Bot Account', () => {
         
         it("Should support correct interfaces", async () => {
             const { botAccount } = await loadFixture(deployContracts);
-            expect(await botAccount.supportsInterface("0x01ffc9a7")).to.be.true;
+            expect(await botAccount.supportsInterface("0x01ffc9a7")).to.be.true; 
         });
         
         it("Should validate signature correctly", async () => {
@@ -264,11 +304,11 @@ describe('ERC 6551 Bot Account', () => {
             const invalidSignature1 = await user2.signMessage(ethers.getBytes(messageHash));
             expect(await tokenAccount.isValidSignature.staticCall(messageHash, invalidSignature1)).to.equal("0x00000000");
             
-            // 3. Test with signature from owner (user1) - should pass
+            // 2. Test with signature from owner (user1) - should pass
             const validSignature1 = await user1.signMessage(ethers.getBytes(messageHash));
             expect(await tokenAccount.isValidSignature.staticCall(messageHash, validSignature1)).to.equal("0x1626ba7e");
             
-            // 4. Test with signature from executor (deployer) - should pass
+            // 3. Test with signature from executor (deployer) - should pass
             const validSignature2 = await deployer.signMessage(ethers.getBytes(messageHash));
             expect(await tokenAccount.isValidSignature.staticCall(messageHash, validSignature2)).to.equal("0x1626ba7e");
         });
@@ -329,7 +369,7 @@ describe('ERC 6551 Bot Account', () => {
         });
 
         it("Should prevent signature replay attacks", async () => {
-            const { botNFT, minter, user1, erc20Token, deployer } = await loadFixture(deployContracts);
+            const { botNFT, minter, user1, erc20Token, deployer, chainId } = await loadFixture(deployContracts);
             
             await botNFT.connect(minter).safeMint(user1.address, "ipfs://uri", deployer.address);
             const tokenAccountAddress = await getBotWallet(botNFT, deployer.address);
@@ -342,16 +382,20 @@ describe('ERC 6551 Bot Account', () => {
                 [user1.address, parseEther("5.0")]
             );
             
-            const payload = ethers.solidityPackedKeccak256(
-                ['uint256', 'address', 'uint256', 'bytes'],
-                [await tokenAccount.nonce(), await erc20Token.getAddress(), "0", encodedFunctionCall]
+            // Generate EIP-712 signature
+            const signature = await generateExecuteCallSignature(
+                tokenAccount,
+                deployer,
+                await erc20Token.getAddress(),
+                0,
+                encodedFunctionCall,
+                chainId
             );
-            const signature = await deployer.signMessage(ethers.getBytes(payload));
             
             // First execution should succeed
             await tokenAccount.connect(user1).executeCallWithSignature(
                 await erc20Token.getAddress(), 
-                "0", 
+                0, 
                 encodedFunctionCall, 
                 signature
             );
@@ -360,12 +404,80 @@ describe('ERC 6551 Bot Account', () => {
             await expect(
                 tokenAccount.connect(user1).executeCallWithSignature(
                     await erc20Token.getAddress(), 
-                    "0", 
+                    0, 
                     encodedFunctionCall, 
                     signature
                 )
             ).to.be.revertedWith("Not executor approved");
         });
-    })
 
+        it("Should reject invalid EIP-712 signatures", async () => {
+            const { botNFT, minter, user1, erc20Token, deployer, user2, chainId } = await loadFixture(deployContracts);
+            
+            await botNFT.connect(minter).safeMint(user1.address, "ipfs://uri", deployer.address);
+            const tokenAccountAddress = await getBotWallet(botNFT, deployer.address);
+            const tokenAccount = await ethers.getContractAt("BotAccount", tokenAccountAddress);
+            
+            await erc20Token.transfer(tokenAccountAddress, parseEther("10"));
+            
+            const encodedFunctionCall = erc20Token.interface.encodeFunctionData(
+                'transfer', 
+                [user1.address, parseEther("5.0")]
+            );
+            
+            // 1. Test with signature from wrong executor (user2)
+            const invalidSignature1 = await generateExecuteCallSignature(
+                tokenAccount,
+                user2, // Wrong executor
+                await erc20Token.getAddress(),
+                0,
+                encodedFunctionCall,
+                chainId
+            );
+            
+            await expect(
+                tokenAccount.connect(user1).executeCallWithSignature(
+                    await erc20Token.getAddress(), 
+                    0, 
+                    encodedFunctionCall, 
+                    invalidSignature1
+                )
+            ).to.be.revertedWith("Not executor approved");
+            
+            // 2. Test with signature for wrong nonce
+            const currentNonce = await tokenAccount.nonce();
+            const wrongNonceSignature = await deployer.signTypedData(
+                {
+                    name: "BotAccount",
+                    version: "1",
+                    chainId: chainId,
+                    verifyingContract: tokenAccountAddress
+                },
+                {
+                    ExecuteCall: [
+                        { name: "to", type: "address" },
+                        { name: "value", type: "uint256" },
+                        { name: "data", type: "bytes" },
+                        { name: "nonce", type: "uint256" }
+                    ]
+                },
+                {
+                    to: await erc20Token.getAddress(),
+                    value: 0,
+                    data: encodedFunctionCall,
+                    nonce: currentNonce + 1n 
+                }
+            );
+            
+            await expect(
+                tokenAccount.connect(user1).executeCallWithSignature(
+                    await erc20Token.getAddress(), 
+                    0, 
+                    encodedFunctionCall, 
+                    wrongNonceSignature
+                )
+            ).to.be.revertedWith("Not executor approved");
+        });
+        
+    })
 });

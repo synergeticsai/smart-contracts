@@ -75,7 +75,15 @@ contract Brain is
         address _pauser,
         string memory _baseMetadataURI
     ) external initializer {
+        require(_parentProxy != address(0), "Brain: parentProxy cannot be zero address");
+        require(_defaultAdmin != address(0), "Brain: defaultAdmin cannot be zero address");
+        require(_minter != address(0), "Brain: minter cannot be zero address");
+        require(_pauser != address(0), "Brain: pauser cannot be zero address");
         __ERC721_init("Brain", "bTKN");
+        __ERC721Enumerable_init();
+        __ERC721URIStorage_init();
+        __ERC721Pausable_init();
+        __ERC721Burnable_init();
         _setParentProxy(_parentProxy);
         _grantRole(DEFAULT_ADMIN_ROLE, _defaultAdmin);
         _grantRole(BRAIN_MINTER_ROLE, _minter);
@@ -140,8 +148,8 @@ contract Brain is
         Subscription calldata _subscriptionInfo
     ) public onlyMinter {
         uint256 tokenId = nextTokenId++;
-        _safeMint(_to, tokenId);
         _setSubscription(tokenId, _subscriptionInfo);
+        _safeMint(_to, tokenId);
     }
 
     /**

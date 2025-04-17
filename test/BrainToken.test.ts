@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { ethers, network, upgrades } from "hardhat";
 import { expect } from "chai";
-import { ProxyFactory, Brain, Brain__factory } from "../typechain-types";
+import { ProxyFactory, Brain, Brain__factory, SimpleTimelock, SimpleTimelock__factory } from "../typechain-types";
 import { calculateProxyAddress } from "./utils/proxies";
 
 describe("Brain Contract", function () {
@@ -13,14 +13,20 @@ describe("Brain Contract", function () {
   async function deployBrainFixture() {
     [owner, minter, pauser, user] = await ethers.getSigners();
 
+    const timelock: SimpleTimelock = await new SimpleTimelock__factory(owner).deploy(
+      3600,                // minDelay: 1 hour
+      [owner.address],     // proposers
+      [owner.address]      // executors
+    );
+
     const ProxyFactoryFactory = await ethers.getContractFactory("ProxyFactory");
     proxyFactory = await upgrades.deployProxy(
       ProxyFactoryFactory,
-      [owner.address, owner.address],
+      [owner.address, owner.address, await timelock.getAddress()],
       { initializer: "initialize" }
     );
     await proxyFactory.waitForDeployment();
-    
+
     const brainImplementation: Brain = await new Brain__factory(owner).deploy();
     const singletonAddress = await brainImplementation.getAddress();
 

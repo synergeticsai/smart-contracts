@@ -5,6 +5,7 @@ import {SafeProxy} from "./SafeProxy.sol";
 import {IProxyCreationCallback} from "./IProxyCreationCallback.sol";
 import "@openzeppelin/contracts/access/IAccessControl.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/governance/TimelockController.sol";
 import "../interfaces/IParentProxy.sol";
 
 contract ProxyFactory is Initializable, IParentProxy {
@@ -13,6 +14,7 @@ contract ProxyFactory is Initializable, IParentProxy {
     address public brainSingleton;
     address public wearableSingleton;
     IAccessControl private accessControlRegistry;
+    TimelockController public timelock;
 
     // Proxy Factory Roles
     bytes32 public constant PROXY_DEPLOYER_ROLE =
@@ -59,10 +61,13 @@ contract ProxyFactory is Initializable, IParentProxy {
 
     function initialize(
         address _admin,
-        IAccessControl _newAccessControlRegistry
+        IAccessControl _newAccessControlRegistry,
+        TimelockController _timelock
     ) public initializer {
+        require(_admin != address(0), "Admin cannot be zero address");
         admin = _admin;
         accessControlRegistry = _newAccessControlRegistry;
+        timelock = _timelock;
     }
 
     /** Functions */
@@ -70,7 +75,9 @@ contract ProxyFactory is Initializable, IParentProxy {
     /**
      * @param   _newAdmin Address of the new admin.
      */
-    function updateAdmin(address _newAdmin) external onlyAdmin {
+    function updateAdmin(address _newAdmin) external {
+        require(msg.sender == address(timelock), "ProxyFactory: only timelock");
+        require(_newAdmin != address(0), "Admin cannot be zero address");
         admin = _newAdmin;
         emit AdminUpdated(_newAdmin);
     }
@@ -80,7 +87,8 @@ contract ProxyFactory is Initializable, IParentProxy {
      */
     function updateAccessControlRegistry(
         IAccessControl _newAccessControlRegistry
-    ) external onlyAdmin {
+    ) external {
+        require(msg.sender == address(timelock), "ProxyFactory: only timelock");
         accessControlRegistry = _newAccessControlRegistry;
         emit AccessControlRegistryUpdated(_newAccessControlRegistry);
     }
@@ -98,6 +106,8 @@ contract ProxyFactory is Initializable, IParentProxy {
         address _brainSingleton,
         address _wearableSingleton
     ) external onlyAdmin {
+        require(_brainSingleton != address(0), "Brain singleton cannot be zero address");
+        require(_wearableSingleton != address(0), "Wearable singleton cannot be zero address");
         brainSingleton = _brainSingleton;
         wearableSingleton = _wearableSingleton;
     }
