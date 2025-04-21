@@ -43,7 +43,7 @@ describe("Bot Contract - Deployment & Initialization", () => {
             botAccount.target
         );
         await botNFT.waitForDeployment(); 
-
+        await erc6551Registry.connect(deployer).setBotContract(botNFT.target);
         return { erc20Token, botAccountFactory, botNFT, botAccount, erc6551Registry, deployer, admin, minter, user, otherUser };
     }
 
@@ -69,7 +69,7 @@ describe("Bot Contract - Deployment & Initialization", () => {
         expect(await botNFT.erc6551Registry()).to.equal(erc6551Registry.target);
         expect(await botNFT.erc6551Account()).to.equal(botAccount.target);
     });
-
+    
     it("Should initialize creationSalt correctly", async () => {
         const { botNFT } = await loadFixture(deployContracts);
         

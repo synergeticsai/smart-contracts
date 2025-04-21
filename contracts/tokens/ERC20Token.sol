@@ -10,6 +10,7 @@ contract ERC20Token is ERC20, Ownable {
     }
 
     function mint(address to, uint256 amount) public onlyOwner {
+        require(to != address(0), "ERC20Token: cannot mint to zero address");
         _mint(to, amount);
     }
 }
