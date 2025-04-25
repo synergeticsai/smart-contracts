@@ -105,8 +105,6 @@ contract BotAccount is
         bytes calldata data,
         bytes calldata signature
     ) external payable returns (bytes memory result) {
-        require(msg.value == value, "Ether value mismatch");
-        
         // Construct EIP-712 typed data hash
         bytes32 structHash = keccak256(
             abi.encode(
