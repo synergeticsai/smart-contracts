@@ -26,16 +26,10 @@ contract AgentRegistry is ERC721URIStorage, IERC8004IdentityRegistry, Reentrancy
         bool isRegistered;
         bytes publicKey; // Public key of the agent (for encryption and decryption)
     }
-<<<<<<< Updated upstream:contracts/agents/AgentRegistry.sol
-    mapping(address => Agent) private agents; // Mapping from walletAddress -> Agent
-=======
->>>>>>> Stashed changes:agents/AgentRegistry.sol
 
     // Mapping from agentId => Legacy Agent Data
     mapping(uint256 => Agent) public agents;
 
-<<<<<<< Updated upstream:contracts/agents/AgentRegistry.sol
-=======
     // Mapping from owner address => Primary Agent ID (for legacy lookup)
     mapping(address => uint256) public primaryAgentId;
 
@@ -52,7 +46,6 @@ contract AgentRegistry is ERC721URIStorage, IERC8004IdentityRegistry, Reentrancy
     // ERC8004 Events are inherited from IERC8004IdentityRegistry
 
     // Legacy Events
->>>>>>> Stashed changes:agents/AgentRegistry.sol
     event AgentRegistered(address indexed agentWallet);
     event AgentAddonListUpdated(address indexed agentWallet);
     event StatusChanged(address indexed agentWallet, bool isAvailable);
@@ -81,10 +74,7 @@ contract AgentRegistry is ERC721URIStorage, IERC8004IdentityRegistry, Reentrancy
      * @param vcs Array of vcs held by the agent.
      * @param tags Tags the agent identifies with.
      * @param isAvailable Availability of the agent.
-<<<<<<< Updated upstream:contracts/agents/AgentRegistry.sol
-=======
      * @param publicKey Public key of the agent (64 bytes uncompressed or 65 bytes with 0x04 prefix).
->>>>>>> Stashed changes:agents/AgentRegistry.sol
      */
     function registerAgent(
         string memory agentType,
@@ -93,17 +83,9 @@ contract AgentRegistry is ERC721URIStorage, IERC8004IdentityRegistry, Reentrancy
         string memory tags,
         bool isAvailable,
         bytes memory publicKey
-<<<<<<< Updated upstream:contracts/agents/AgentRegistry.sol
-    ) external {
-        require(
-            !agents[msg.sender].isRegistered,
-            "AgentRegistry: agent already registered"
-        );
-=======
     ) external nonReentrant {
         require(primaryAgentId[msg.sender] == 0, "AgentRegistry: agent already registered");
         
->>>>>>> Stashed changes:agents/AgentRegistry.sol
         // Verify that the provided public key matches the sender's address
         require(
             verifyPublicKey(msg.sender, publicKey),
@@ -126,9 +108,6 @@ contract AgentRegistry is ERC721URIStorage, IERC8004IdentityRegistry, Reentrancy
         agents[newAgentId] = newAgent;
         primaryAgentId[msg.sender] = newAgentId;
 
-<<<<<<< Updated upstream:contracts/agents/AgentRegistry.sol
-        emit AgentRegistered(msg.sender);
-=======
         // 3. Emit Events
         emit AgentRegistered(msg.sender);
     }
@@ -147,7 +126,6 @@ contract AgentRegistry is ERC721URIStorage, IERC8004IdentityRegistry, Reentrancy
         uint256 agentId = primaryAgentId[msg.sender];
         agents[agentId].publicKey = publicKey;
         // Optionally emit an event, or rely on getters
->>>>>>> Stashed changes:agents/AgentRegistry.sol
     }
 
     // --- ERC8004 Standard Registration Functions ---
